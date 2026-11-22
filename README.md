@@ -5,12 +5,12 @@ Aplicación para Windows en español que guarda audio en MP3 o vídeo en MP4 a p
 ## Descargar y usar
 
 1. Descarga **DescargaMultimedia.exe** desde [la última versión](https://github.com/davidmotog/descarga-multimedia/releases/latest).
-2. Abre el programa, pega un enlace HTTP o HTTPS y elige una carpeta.
-3. Pulsa **Descargar MP3** para guardar el audio o **Descargar MP4** para guardar el vídeo. El registro muestra el resultado y el botón **Abrir carpeta** te lleva a los archivos.
+2. Abre el programa, pega un enlace HTTP o HTTPS y elige **Audio · MP3** o **Vídeo · MP4**.
+3. Elige la carpeta y pulsa **Descargar**. La ventana muestra el progreso y permite abrir el archivo terminado. Despliega **Registro técnico** para ver los detalles.
 
 El nombre del archivo incluye el título y el identificador del contenido. Utiliza la aplicación con material propio o que tengas permiso para descargar.
 
-La esquina superior derecha muestra la versión que estás ejecutando con el formato **1.año.mes.día**. Pulsa **Buscar actualización** para compararla con la última publicación de GitHub. Si hay una versión posterior, aparecerá un enlace para descargarla.
+La interfaz HTML se incluye en el ejecutable y se abre localmente con Microsoft Edge WebView2 Runtime. Si falta en tu equipo, puedes obtenerlo desde la [página de Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/). La esquina superior derecha muestra la versión con el formato **2.año.mes.día**. Pulsa **Buscar actualización** para consultar la última publicación de GitHub.
 
 ## Herramientas de descarga
 
@@ -32,10 +32,9 @@ Abre Windows PowerShell 5.1 en la carpeta del repositorio y ejecuta el script.
 .\DescargaMultimedia.ps1
 ```
 
-Para generar el ejecutable en esa misma carpeta, utiliza PS2EXE.
+El script compila el proyecto cuando hace falta. Para regenerar el ejecutable, usa Windows PowerShell 5.1 y .NET Framework 4.8. La compilación descarga el SDK WebView2 desde NuGet, comprueba su SHA-256 e incluye sus bibliotecas, la interfaz y el motor de descarga en el ejecutable.
 
 ```powershell
-Install-Module ps2exe -RequiredVersion 1.0.17 -Scope CurrentUser
 .\Compilar.ps1
 ```
 

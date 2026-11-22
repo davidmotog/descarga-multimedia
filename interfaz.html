@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+<title>Descarga Multimedia</title>
+<style>
+:root{color-scheme:light;--ink:#172b24;--green:#14503d;--lime:#d9f57c;--paper:#f5f5ef;--line:#d7dcd1;--muted:#53635b;font:15px/1.45 "Inter","Segoe UI",sans-serif;color:var(--ink);background:var(--paper)}
+*{box-sizing:border-box}body{margin:0}button,input{font:inherit}button{cursor:pointer;color:inherit}button:disabled{cursor:wait;opacity:.6}button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #568a52;outline-offset:3px}
+header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px clamp(18px,5vw,56px);background:#173b2f;color:white}.brand,.tools,.row,.choice,.footer,.actions{display:flex;align-items:center;gap:12px}.brand{font-weight:650;font-size:17px;letter-spacing:-.4px}.mark{display:grid;place-items:center;background:var(--lime);color:var(--ink);width:32px;height:32px;border-radius:9px;font-size:24px;line-height:1}.version{font:12px "IBM Plex Mono",Consolas,monospace;color:#d2e3d5;white-space:nowrap}.tools button{color:white;background:transparent;border:1px solid #648477;border-radius:7px;padding:6px 10px;font-size:12px}.tools button:hover{background:#305645}
+main{max-width:840px;margin:auto;padding:28px clamp(18px,4vw,44px) 24px}.update{text-align:right;margin:0 0 12px;color:var(--muted);font-size:13px}.link{border:0;background:none;color:var(--green);text-decoration:underline;padding:2px 0}
+h1{font-family:"Bricolage Grotesque","Segoe UI",sans-serif;font-size:clamp(30px,4.5vw,42px);line-height:1.12;letter-spacing:-1.7px;margin:0 0 19px;font-weight:650}.panel,.activity{background:#fff;border:1px solid var(--line);border-radius:14px}.panel{padding:21px 25px}.field{margin-bottom:16px}.label,legend{display:block;font-size:13px;font-weight:650;margin:0 0 6px}input[type=url],input[type=text]{width:100%;color:var(--ink);background:#fafbf8;border:1px solid #bdc7be;border-radius:7px;padding:10px 12px;min-width:0}input::placeholder{color:#728078}.row input{flex:1}.small{border:1px solid #bfc9c0;border-radius:7px;background:#fff;padding:8px 13px;white-space:nowrap}.small:hover{background:#f1f5ed}
+fieldset{border:0;padding:0;margin:0 0 16px}.choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}.choice{position:relative;border:1px solid var(--line);border-radius:8px;padding:11px 14px;cursor:pointer;font-weight:600}.choice:has(input:checked){border-color:var(--green);background:#eff6e9;box-shadow:inset 0 0 0 1px var(--green)}input[type=radio],input[type=checkbox]{accent-color:var(--green)}.choice input{margin:0}.choice .type{margin-left:auto;font:12px Consolas,monospace;color:var(--muted)}
+.footer{justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:15px}.permission{display:flex;align-items:flex-start;gap:7px;max-width:365px;font-size:12px;color:var(--muted)}.permission input{margin-top:3px}.primary{display:inline-flex;justify-content:center;align-items:center;gap:12px;border:0;border-radius:8px;background:var(--green);color:white;font-weight:650;padding:11px 22px}.primary:hover{background:#1a654e}
+.activity{margin-top:16px;padding:15px 23px}.activity-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.status{display:flex;align-items:center;gap:10px;font-weight:650;min-width:0}.dot{width:9px;height:9px;border-radius:50%;background:#87968b;flex-shrink:0}.activity[data-state=busy] .dot{background:#68a048}.activity[data-state=done] .dot{background:#29815c}.activity[data-state=error] .dot{background:#bc4c32}#percent{font-family:Consolas,monospace;font-size:13px}.info{font-size:13px;color:var(--muted);overflow-wrap:anywhere;margin:7px 0}.actions{margin-top:9px}.actions .small{font-size:13px}.bar{width:100%;accent-color:var(--green);display:block;height:7px;margin:10px 0}.details{border-top:1px solid var(--line);margin-top:12px;padding-top:9px;font-size:12px;color:var(--muted)}summary{cursor:pointer;width:fit-content}pre{max-height:155px;overflow:auto;background:#f4f6f1;border-radius:7px;padding:10px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink);font:12px/1.5 Consolas,monospace}[hidden]{display:none!important}
+@media(max-width:640px){header{flex-wrap:wrap;padding:13px 18px}.brand{font-size:15px}.tools{gap:8px}.panel{padding:16px}.footer{align-items:stretch;flex-direction:column}.permission{max-width:none}main{padding-top:20px}.choice{gap:6px;padding:10px}.row{gap:6px}.tools button{font-size:11px}}
+</style>
+</head>
+<body>
+<header><div class="brand"><span class="mark" aria-hidden="true">↓</span>Descarga Multimedia</div><div class="tools"><span class="version" id="version"></span><button id="update" type="button">Buscar actualización</button></div></header>
+<main>
+<p id="updateArea" class="update" role="status" hidden><span id="updateText"></span><button class="link" id="release" hidden></button></p>
+<h1>Nueva descarga</h1>
+<form id="form" class="panel">
+<div class="field"><label class="label" for="url">Enlace de vídeo o audio</label><input id="url" type="url" placeholder="https://…" autocomplete="off" required></div>
+<fieldset><legend>Formato de salida</legend><div class="choices">
+<label class="choice"><input type="radio" name="modo" value="mp3">Audio<span class="type">MP3</span></label>
+<label class="choice"><input type="radio" name="modo" value="mp4" checked>Vídeo<span class="type">MP4</span></label></div></fieldset>
+<div class="field"><label class="label" for="folder">Guardar en</label><div class="row"><input type="text" id="folder" required><button class="small" type="button" id="browse">Cambiar</button></div></div>
+<div class="footer"><label class="permission"><input id="allow" type="checkbox">Permitir que WinGet instale herramientas y actualice yt-dlp si aparece un error 403.</label><button class="primary" id="download" type="submit" disabled><span aria-hidden="true">↓</span> Descargar</button></div>
+</form>
+<section class="activity" id="activity" aria-label="Estado de la descarga"><div class="activity-head"><span class="status" role="status"><i class="dot" aria-hidden="true"></i><span id="status">Listo para descargar</span></span><span id="percent"></span></div>
+<progress class="bar" id="progress" max="100" aria-label="Progreso de la descarga" hidden></progress>
+<p class="info" id="info" hidden></p><div class="actions"><button type="button" class="small" id="openFile" hidden>Abrir archivo</button><button type="button" class="link" id="openFolder">Abrir carpeta</button></div>
+<details class="details"><summary>Registro técnico</summary><pre id="log">Todavía no hay actividad.</pre></details>
+</section></main>
+<script>
+'use strict';
+const el = id => document.getElementById(id);
+const send = (accion, datos = {}) => window.chrome.webview.postMessage({accion, ...datos});
+const controls = [...el('form').elements];
+function lock(busy) { for (const control of controls) control.disabled = busy; }
+function state(kind, title, message = '') {
+  el('activity').dataset.state = kind; el('status').textContent = title;
+  el('info').textContent = message; el('info').hidden = !message;
+  el('progress').hidden = kind !== 'busy'; el('percent').textContent = '';
+  if (kind === 'busy') el('progress').removeAttribute('value');
+}
+function showLog(text) {
+  el('log').textContent = text; el('log').scrollTop = el('log').scrollHeight;
+  const lines = text.split(/\r?\n/).reverse();
+  const entry = lines.find(line => line.startsWith('DM_PROGRESS ') || line.startsWith('DM_CONVERT '));
+  if (!entry) return;
+  const percent = entry.match(/^DM_PROGRESS\s+([\d.]+)%/);
+  if (percent) {
+    el('status').textContent = 'Descargando'; el('progress').value = Number(percent[1]);
+    el('percent').textContent = percent[1] + ' %';
+  } else if (entry.startsWith('DM_CONVERT ')) state('busy','Procesando el archivo');
+}
+el('form').onsubmit = e => {
+  e.preventDefault();
+  const modo = el('form').elements.modo.value;
+  lock(true); el('openFile').hidden = true; el('log').textContent = '';
+  state('busy','Preparando descarga');
+  send('descargar',{url:el('url').value.trim(), modo, carpeta:el('folder').value.trim(), permitir:el('allow').checked});
+};
+el('browse').onclick = () => send('carpeta',{carpeta:el('folder').value});
+el('openFolder').onclick = () => send('abrirCarpeta',{carpeta:el('folder').value});
+el('openFile').onclick = () => send('abrirArchivo');
+el('release').onclick = () => send('verVersion');
+el('update').onclick = () => {
+  el('update').disabled = true; el('updateArea').hidden = false; el('release').hidden = true;
+  el('updateText').textContent = 'Consultando GitHub…'; send('actualizar');
+};
+window.chrome.webview.addEventListener('message', ({data}) => {
+  switch (data.tipo) {
+    case 'inicio': el('version').textContent = 'v' + data.version; el('folder').value = data.carpeta; lock(false); el('url').focus(); break;
+    case 'carpeta': case 'empezar': el('folder').value = data.carpeta; break;
+    case 'registro': showLog(data.texto); break;
+    case 'terminar': lock(false); state('done','Descarga completada',data.archivo); el('openFile').hidden = false; break;
+    case 'fallo': lock(false); state('error','Revisa la descarga',data.texto); break;
+    case 'aviso': el('info').textContent = data.texto; el('info').hidden = false; break;
+    case 'actualizacion':
+      el('update').disabled = false; el('release').hidden = !data.disponible;
+      el('release').textContent = data.disponible ? data.texto : '';
+      el('updateText').textContent = data.disponible ? '' : data.texto; break;
+  }
+});
+send('listo');
+</script>
+</body></html>
