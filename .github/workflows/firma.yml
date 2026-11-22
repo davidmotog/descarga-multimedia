@@ -1,0 +1,113 @@
+name: Compilar y firmar con SignPath
+
+on:
+  workflow_dispatch:
+    inputs:
+      firmar:
+        description: Solicitar la firma a SignPath
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  compilar:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    outputs:
+      ejecutable: ${{ steps.compilar.outputs.ejecutable }}
+      version: ${{ steps.compilar.outputs.version }}
+      artefacto: ${{ steps.artefacto.outputs.artifact-id }}
+    steps:
+      - name: Obtener el código fuente
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Compilar en Windows PowerShell
+        id: compilar
+        shell: powershell
+        env:
+          FIRMAR: ${{ inputs.firmar }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:FIRMAR -eq 'true' -and $env:GITHUB_REF -ne 'refs/heads/main') {
+            throw 'Las solicitudes de firma se generan desde la rama main.'
+          }
+          $carpeta = Join-Path $env:RUNNER_TEMP 'binario'
+          [void][IO.Directory]::CreateDirectory($carpeta)
+          $nombre = 'DescargaMultimedia.exe'
+          $destino = Join-Path $carpeta $nombre
+          .\Compilar.ps1 -Salida $destino | Out-Null
+          $info = (Get-Item -LiteralPath $destino).VersionInfo
+          if ($info.ProductName -ne 'Descarga Multimedia' -or $info.FileVersion -notmatch '^\d+\.\d{4}\.\d{1,2}\.\d{1,2}$') {
+            throw 'Los metadatos del producto o de la versión no coinciden.'
+          }
+          "ruta=$destino" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "ejecutable=$nombre" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "version=$($info.FileVersion)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - name: Guardar el ejecutable compilado
+        id: artefacto
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: compilado-sin-firma
+          path: ${{ steps.compilar.outputs.ruta }}
+          if-no-files-found: error
+
+  firmar:
+    if: inputs.firmar
+    needs: compilar
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - name: Comprobar la configuración de SignPath
+        shell: powershell
+        env:
+          SIGNPATH_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORG: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROYECTO: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_POLITICA: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+        run: |
+          if (!$env:SIGNPATH_TOKEN -or !$env:SIGNPATH_ORG -or !$env:SIGNPATH_PROYECTO -or !$env:SIGNPATH_POLITICA) {
+            throw 'No se ha configurado la cuenta de SignPath para este repositorio.'
+          }
+      - name: Solicitar firma y descargar el resultado
+        uses: signpath/github-action-submit-signing-request@a2c5b60d9c75f073142b653c354b632eedce097b # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ needs.compilar.outputs.artefacto }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: ${{ runner.temp }}/firmado
+      - name: Verificar la firma y calcular SHA-256
+        shell: powershell
+        env:
+          NOMBRE_EXE: ${{ needs.compilar.outputs.ejecutable }}
+          VERSION_ESPERADA: ${{ needs.compilar.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $carpeta = Join-Path $env:RUNNER_TEMP 'firmado'
+          $ejecutable = Join-Path $carpeta $env:NOMBRE_EXE
+          $archivo = Get-Item -LiteralPath $ejecutable
+          $firma = Get-AuthenticodeSignature -LiteralPath $ejecutable
+          if ($firma.Status -ne 'Valid' -or !$firma.TimeStamperCertificate -or
+              $firma.SignerCertificate.GetNameInfo('SimpleName', $false) -ne 'SignPath Foundation') {
+            throw 'La firma, el editor o el sello de tiempo no son válidos.'
+          }
+          if ($archivo.VersionInfo.ProductName -ne 'Descarga Multimedia' -or $archivo.VersionInfo.FileVersion -ne $env:VERSION_ESPERADA) {
+            throw 'Los metadatos del binario firmado no coinciden con la compilación.'
+          }
+          $sha256 = (Get-FileHash -LiteralPath $ejecutable -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$sha256  $env:NOMBRE_EXE" | Set-Content -LiteralPath (Join-Path $carpeta 'SHA256SUMS.txt') -Encoding ascii
+      - name: Guardar los archivos verificados
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: version-firmada
+          path: |
+            ${{ runner.temp }}/firmado/${{ needs.compilar.outputs.ejecutable }}
+            ${{ runner.temp }}/firmado/SHA256SUMS.txt
+          if-no-files-found: error
