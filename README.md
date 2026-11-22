@@ -6,6 +6,8 @@ Descarga audio en **MP3** o vídeo en **MP4** desde YouTube y otros sitios compa
 
 ![Ventana de Descarga Multimedia con el campo de enlace, el selector MP3 o MP4 y el botón Descargar](docs/interfaz.png)
 
+Si Windows impide abrir el archivo, consulta [qué hacer si Windows 11 bloquea el ejecutable](#si-windows-11-bloquea-el-ejecutable).
+
 ## Requisitos
 
 - **Windows** con Microsoft Edge WebView2 Runtime. Si la ventana indica que falta, instala [WebView2 Runtime desde Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/).
@@ -32,6 +34,14 @@ Si instalaste yt-dlp con WinGet, puedes actualizarlo también desde PowerShell.
 ```powershell
 winget upgrade --id yt-dlp.yt-dlp --exact
 ```
+
+## Si Windows 11 bloquea el ejecutable
+
+La descarga de GitHub se distribuye sin firma digital. Si aparece **Control inteligente de aplicaciones**, Windows ha bloqueado el archivo antes de iniciar el programa. Este control se aplica a nivel de equipo y carece de excepciones para aplicaciones individuales. Puedes comprobar su estado en **Seguridad de Windows → Control de aplicaciones y navegador → Configuración de Control inteligente de aplicaciones**. [Preguntas frecuentes de Microsoft](https://support.microsoft.com/es-es/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions)
+
+Si aparece **Windows protegió su PC** o **Editor desconocido** en un aviso de **Microsoft Defender SmartScreen**, se trata de la comprobación de reputación del archivo y del editor. [Cómo funciona SmartScreen](https://learn.microsoft.com/es-es/windows/apps/package-and-deploy/smartscreen-reputation)
+
+Descarga el archivo desde los enlaces oficiales de este repositorio y [comprueba su SHA-256](#verificar-la-descarga). La suma comprueba la integridad del archivo. Para identificar al editor, Windows usa una firma de código de confianza. Si el aviso persiste, informa del mensaje exacto y de la versión de Windows. Si el equipo está administrado por una empresa, consulta con su equipo de TI. [Informar de un bloqueo en GitHub](https://github.com/davidmotog/descarga-multimedia/issues) · [Firma para Control inteligente de aplicaciones](https://learn.microsoft.com/es-es/windows/apps/develop/smart-app-control/code-signing-for-smart-app-control)
 
 ## Compilar desde el código fuente
 
