@@ -18,26 +18,15 @@ function Show-Error {
     ) | Out-Null
 }
 
-function Show-Info {
-    param([string]$msg)
-
-    [System.Windows.Forms.MessageBox]::Show(
-        $msg,
-        "Información",
-        [System.Windows.Forms.MessageBoxButtons]::OK,
-        [System.Windows.Forms.MessageBoxIcon]::Information
-    ) | Out-Null
-}
-
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "YouTube a MP3 / MP4"
+$form.Text = "Descarga Multimedia"
 $form.Size = New-Object System.Drawing.Size(760, 520)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
 
 $urlLabel = New-Object System.Windows.Forms.Label
-$urlLabel.Text = "Enlace de YouTube:"
+$urlLabel.Text = "Enlace del vídeo o audio:"
 $urlLabel.Location = New-Object System.Drawing.Point(20, 20)
 $urlLabel.Size = New-Object System.Drawing.Size(200, 25)
 $form.Controls.Add($urlLabel)
@@ -83,9 +72,15 @@ $openFolderButton.Location = New-Object System.Drawing.Point(380, 155)
 $openFolderButton.Size = New-Object System.Drawing.Size(160, 35)
 $form.Controls.Add($openFolderButton)
 
+$installBox = New-Object System.Windows.Forms.CheckBox
+$installBox.Text = "Permitir que WinGet instale las herramientas que falten"
+$installBox.Location = New-Object System.Drawing.Point(20, 198)
+$installBox.AutoSize = $true
+$form.Controls.Add($installBox)
+
 $logBox = New-Object System.Windows.Forms.TextBox
-$logBox.Location = New-Object System.Drawing.Point(20, 210)
-$logBox.Size = New-Object System.Drawing.Size(700, 240)
+$logBox.Location = New-Object System.Drawing.Point(20, 230)
+$logBox.Size = New-Object System.Drawing.Size(700, 220)
 $logBox.Multiline = $true
 $logBox.ScrollBars = "Vertical"
 $logBox.ReadOnly = $true
@@ -100,6 +95,9 @@ function Set-ButtonsEnabled {
     $downloadButtonMP3.Enabled = $enabled
     $downloadButtonMP4.Enabled = $enabled
     $browseButton.Enabled = $enabled
+    $installBox.Enabled = $enabled
+    $urlBox.ReadOnly = -not $enabled
+    $folderBox.ReadOnly = -not $enabled
 }
 
 function Start-Download {
@@ -108,7 +106,7 @@ function Start-Download {
         [string]$mode
     )
 
-    if ($script:job -and $script:job.State -eq "Running") {
+    if ($script:job) {
         Show-Error "Ya hay una descarga en curso."
         return
     }
@@ -116,8 +114,10 @@ function Start-Download {
     $url = $urlBox.Text.Trim()
     $folder = $folderBox.Text.Trim()
 
-    if ([string]::IsNullOrWhiteSpace($url)) {
-        Show-Error "Pega primero un enlace de YouTube."
+    [uri]$address = $null
+    if (-not [uri]::TryCreate($url, [UriKind]::Absolute, [ref]$address) -or
+        $address.Scheme -notin @("http", "https") -or -not $address.Host) {
+        Show-Error "Pega un enlace completo que empiece por http:// o https://."
         return
     }
 
@@ -126,8 +126,12 @@ function Start-Download {
         return
     }
 
-    if (-not (Test-Path $folder)) {
-        New-Item -ItemType Directory -Path $folder -Force | Out-Null
+    try {
+        $folder = [IO.Directory]::CreateDirectory($folder).FullName
+        $folderBox.Text = $folder
+    } catch {
+        Show-Error ("No se puede usar la carpeta seleccionada. " + $_.Exception.Message)
+        return
     }
 
     $script:logFile = Join-Path $env:TEMP ("yt-dlp-gui-" + [guid]::NewGuid().ToString() + ".log")
@@ -139,42 +143,28 @@ function Start-Download {
     $logBox.AppendText("Modo: $modeText`r`n")
     $logBox.AppendText("Descargando en: $folder`r`n")
     $logBox.AppendText("URL: $url`r`n`r`n")
-    $logBox.AppendText("Comprobando yt-dlp y ffmpeg...`r`n")
+    $logBox.AppendText("Comprobando las herramientas de descarga...`r`n")
 
     Set-ButtonsEnabled $false
 
-    $script:job = Start-Job -ArgumentList $url, $folder, $script:logFile, $mode -ScriptBlock {
-        param($Url, $Folder, $LogFile, $Mode)
+    $worker = {
+        param($Url, $Folder, $LogFile, $Mode, $AllowInstall)
 
         function Write-Log {
             param([string]$Text = "")
-            $Text | Out-File -FilePath $LogFile -Encoding utf8 -Append
+            $Text | Out-File -LiteralPath $LogFile -Encoding utf8 -Append
         }
 
         function Refresh-Path {
-            $paths = @()
-
-            $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-            $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-            $processPath = [Environment]::GetEnvironmentVariable("Path", "Process")
-
-            foreach ($p in @($machinePath, $userPath, $processPath)) {
-                if (-not [string]::IsNullOrWhiteSpace($p)) {
-                    $paths += $p.Split(";") | Where-Object {
-                        -not [string]::IsNullOrWhiteSpace($_)
-                    }
-                }
+            $paths = foreach ($scope in @("Process", "User", "Machine")) {
+                [Environment]::GetEnvironmentVariable("Path", $scope) -split ";" | Where-Object { $_ }
             }
-
-            $uniquePaths = $paths | Select-Object -Unique
-            [Environment]::SetEnvironmentVariable("Path", ($uniquePaths -join ";"), "Process")
+            $env:Path = ($paths | Select-Object -Unique) -join ";"
         }
 
         function Test-CommandExists {
             param([string]$CommandName)
-
-            Refresh-Path
-            return [bool](Get-Command $CommandName -ErrorAction SilentlyContinue)
+            return [bool](Get-Command $CommandName -CommandType Application -ErrorAction SilentlyContinue)
         }
 
         function Invoke-LoggedProcess {
@@ -188,124 +178,38 @@ function Start-Download {
 
             & $FilePath @Arguments *>&1 |
                 ForEach-Object {
-                    $_.ToString() | Out-File -FilePath $LogFile -Encoding utf8 -Append
+                    Write-Log $_.ToString()
                 }
 
             return $LASTEXITCODE
         }
 
-        function Install-WithWinget {
-            param(
-                [string]$PackageId,
-                [string]$ProgramName
-            )
+        function Ensure-Dependency {
+            param([string]$CommandName, [string]$PackageId)
 
-            Refresh-Path
+            if (Test-CommandExists $CommandName) {
+                Write-Log ("Disponible: " + $CommandName)
+                return $true
+            }
 
-            if (-not (Test-CommandExists "winget")) {
-                Write-Log "ERROR: No encuentro winget."
-                Write-Log "No puedo instalar dependencias automáticamente."
-                Write-Log "Instala manualmente yt-dlp y ffmpeg."
+            if (-not $AllowInstall -or -not (Test-CommandExists "winget")) {
+                Write-Log ("Falta {0}. Puedes instalarlo con: winget install --id {1} --exact" -f $CommandName, $PackageId)
                 return $false
             }
 
-            Write-Log ("No encuentro {0}. Intentando instalar automáticamente..." -f $ProgramName)
-            Write-Log ("Paquete winget: {0}" -f $PackageId)
-            Write-Log ""
-
-            $argsSilent = @(
-                "install",
-                "-e",
-                "--id", $PackageId,
-                "--source", "winget",
-                "--silent",
-                "--accept-package-agreements",
-                "--accept-source-agreements",
-                "--disable-interactivity"
-            )
-
-            $installCode = Invoke-LoggedProcess -FilePath "winget" -Arguments $argsSilent
-
-            if ($installCode -ne 0) {
-                Write-Log ""
-                Write-Log ("La instalación silenciosa de {0} falló con código {1}." -f $ProgramName, $installCode)
-                Write-Log "Reintentando sin modo silencioso..."
-                Write-Log ""
-
-                $argsNormal = @(
-                    "install",
-                    "-e",
-                    "--id", $PackageId,
-                    "--source", "winget",
-                    "--accept-package-agreements",
-                    "--accept-source-agreements"
-                )
-
-                $installCode = Invoke-LoggedProcess -FilePath "winget" -Arguments $argsNormal
-            }
-
-            Write-Log ""
-            Write-Log ("Código de instalación de {0}: {1}" -f $ProgramName, $installCode)
-
-            Start-Sleep -Seconds 2
+            Write-Log ("Instalando " + $PackageId)
+            $installArgs = @("install", "--id", $PackageId, "--exact", "--source", "winget",
+                "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity")
+            $code = Invoke-LoggedProcess -FilePath "winget" -Arguments $installArgs
             Refresh-Path
-
-            if ($installCode -ne 0) {
-                Write-Log ("ERROR: No se pudo instalar {0} automáticamente." -f $ProgramName)
+            if (-not (Test-CommandExists $CommandName)) {
+                Write-Log ("No se encuentra {0} después de ejecutar WinGet (código {1})." -f $CommandName, $code)
                 return $false
             }
-
-            Write-Log ("{0} instalado correctamente." -f $ProgramName)
             return $true
         }
 
-        function Ensure-Dependencies {
-            Refresh-Path
-
-            if (-not (Test-CommandExists "yt-dlp")) {
-                $okYtdlp = Install-WithWinget -PackageId "yt-dlp.yt-dlp" -ProgramName "yt-dlp"
-
-                if (-not $okYtdlp) {
-                    return $false
-                }
-            } else {
-                Write-Log "yt-dlp encontrado."
-            }
-
-            Refresh-Path
-
-            if (-not (Test-CommandExists "ffmpeg")) {
-                $okFfmpeg = Install-WithWinget -PackageId "Gyan.FFmpeg" -ProgramName "ffmpeg"
-
-                if (-not $okFfmpeg) {
-                    return $false
-                }
-            } else {
-                Write-Log "ffmpeg encontrado."
-            }
-
-            Refresh-Path
-
-            if (-not (Test-CommandExists "yt-dlp")) {
-                Write-Log "ERROR: yt-dlp se instaló, pero esta sesión todavía no lo encuentra."
-                Write-Log "Cierra y vuelve a abrir el programa, o reinicia Windows."
-                return $false
-            }
-
-            if (-not (Test-CommandExists "ffmpeg")) {
-                Write-Log "ERROR: ffmpeg se instaló, pero esta sesión todavía no lo encuentra."
-                Write-Log "Cierra y vuelve a abrir el programa, o reinicia Windows."
-                return $false
-            }
-
-            Write-Log ""
-            Write-Log "Dependencias listas."
-            Write-Log ""
-
-            return $true
-        }
-
-        $outputTemplate = Join-Path $Folder "%(title)s.%(ext)s"
+        $outputTemplate = "%(title).140B [%(id)s].%(ext)s"
 
         Write-Log "----------------------------------------"
         Write-Log ("Fecha: {0}" -f (Get-Date))
@@ -315,65 +219,52 @@ function Start-Download {
         Write-Log "----------------------------------------"
         Write-Log ""
 
-        $depsOk = Ensure-Dependencies
-
-        if (-not $depsOk) {
-            Write-Log ""
-            Write-Log "ERROR: Faltan dependencias. No puedo continuar."
-            exit 50
+        Refresh-Path
+        if (-not (Ensure-Dependency "yt-dlp" "yt-dlp.yt-dlp")) { return }
+        if (-not (Ensure-Dependency "ffmpeg" "Gyan.FFmpeg")) { return }
+        if (([uri]$Url).Host -match '(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com)$') {
+            if (-not (Ensure-Dependency "deno" "DenoLand.Deno")) { return }
         }
 
+        $ytArgs = @("--newline", "--no-playlist", "--windows-filenames", "--no-overwrites",
+            "-P", $Folder, "-o", $outputTemplate)
         if ($Mode -eq "mp3") {
-            $ytArgs = @(
-                "--newline",
-                "--no-playlist",
-                "--windows-filenames",
-                "-x",
-                "--audio-format", "mp3",
-                "--audio-quality", "0",
-                "-o", $outputTemplate,
-                $Url
-            )
-
-            $exitCode = Invoke-LoggedProcess -FilePath "yt-dlp" -Arguments $ytArgs
-        }
-        elseif ($Mode -eq "mp4") {
-            $ytArgs = @(
-                "--newline",
-                "--no-playlist",
-                "--windows-filenames",
-                "-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/best",
-                "--merge-output-format", "mp4",
-                "--recode-video", "mp4",
-                "-o", $outputTemplate,
-                $Url
-            )
-
-            $exitCode = Invoke-LoggedProcess -FilePath "yt-dlp" -Arguments $ytArgs
+            $ytArgs += @("-x", "--audio-format", "mp3", "--audio-quality", "0")
+        } else {
+            $ytArgs += @("-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/best",
+                "--merge-output-format", "mp4", "--recode-video", "mp4")
         }
 
+        $ytArgs += @("--", $Url)
+        $exitCode = Invoke-LoggedProcess -FilePath "yt-dlp" -Arguments $ytArgs
         Write-Log ""
 
         if ($exitCode -eq 0) {
             if ($Mode -eq "mp3") {
-                Write-Log "FINALIZADO: MP3 creado correctamente."
+                Write-Log "FINALIZADO: MP3 disponible en la carpeta de salida."
             }
             elseif ($Mode -eq "mp4") {
-                Write-Log "FINALIZADO: MP4 creado correctamente."
+                Write-Log "FINALIZADO: MP4 disponible en la carpeta de salida."
             }
         } else {
             Write-Log ("ERROR: yt-dlp terminó con código {0}." -f $exitCode)
         }
     }
 
-    $timer.Start()
+    try {
+        $script:job = Start-Job -ScriptBlock $worker -ArgumentList $url, $folder, $script:logFile, $mode, $installBox.Checked -ErrorAction Stop
+        $timer.Start()
+    } catch {
+        Set-ButtonsEnabled $true
+        Show-Error ("No se pudo iniciar la descarga. " + $_.Exception.Message)
+    }
 }
 
 $browseButton.Add_Click({
     $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
     $dialog.Description = "Elige dónde guardar el archivo"
 
-    if (Test-Path $folderBox.Text) {
+    if ([IO.Directory]::Exists($folderBox.Text)) {
         $dialog.SelectedPath = $folderBox.Text
     }
 
@@ -393,7 +284,7 @@ $downloadButtonMP4.Add_Click({
 $openFolderButton.Add_Click({
     $folder = $folderBox.Text.Trim()
 
-    if (Test-Path $folder) {
+    if ([IO.Directory]::Exists($folder)) {
         Start-Process explorer.exe -ArgumentList "`"$folder`""
     } else {
         Show-Error "La carpeta no existe."
@@ -401,6 +292,7 @@ $openFolderButton.Add_Click({
 })
 
 $timer.Add_Tick({
+    $finished = $script:job -and $script:job.State -in @("Completed", "Failed", "Stopped")
     if ($script:logFile -and (Test-Path $script:logFile)) {
         $content = Get-Content $script:logFile -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
 
@@ -412,13 +304,19 @@ $timer.Add_Tick({
         }
     }
 
-    if ($script:job -and ($script:job.State -in @("Completed", "Failed", "Stopped"))) {
+    if ($finished) {
         $timer.Stop()
 
-        Receive-Job $script:job -ErrorAction SilentlyContinue | Out-Null
+        Receive-Job $script:job -ErrorAction SilentlyContinue -ErrorVariable jobErrors | Out-Null
+        if ($jobErrors -or $script:job.State -eq "Failed") {
+            $reason = $script:job.ChildJobs[0].JobStateInfo.Reason
+            $logBox.AppendText(("`r`nError de descarga: {0} {1}`r`n" -f $reason, ($jobErrors -join " ")))
+        }
         Remove-Job $script:job -Force -ErrorAction SilentlyContinue
 
         $script:job = $null
+        Remove-Item -LiteralPath $script:logFile -Force -ErrorAction SilentlyContinue
+        $script:logFile = $null
 
         Set-ButtonsEnabled $true
 
@@ -441,6 +339,13 @@ $form.Add_FormClosing({
             Stop-Job -Job $script:job -ErrorAction SilentlyContinue
             Remove-Job -Job $script:job -Force -ErrorAction SilentlyContinue
         }
+    }
+})
+
+$form.Add_FormClosed({
+    $timer.Dispose()
+    if ($script:logFile) {
+        Remove-Item -LiteralPath $script:logFile -Force -ErrorAction SilentlyContinue
     }
 })
 
