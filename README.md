@@ -12,7 +12,7 @@ El nombre del archivo incluye el título y el identificador del contenido. Utili
 
 ## Herramientas de descarga
 
-El programa busca yt-dlp y FFmpeg en Windows. Para los enlaces de YouTube también comprueba Deno. Si falta una herramienta, la ventana indica el comando para instalarla. Puedes marcar **Permitir que WinGet instale las herramientas que falten** antes de iniciar la descarga para que la aplicación ejecute esa instalación. La casilla está desactivada al abrir el programa.
+El programa busca yt-dlp y FFmpeg en Windows. Para los enlaces de YouTube también comprueba Deno. Si falta una herramienta, la ventana indica el comando para instalarla. Puedes marcar **Permitir que WinGet instale herramientas y actualice yt-dlp si hay un error 403** antes de iniciar la descarga para que la aplicación ejecute esa instalación. La casilla está desactivada al abrir el programa. Si la activas y el servidor devuelve un error HTTP 403, la aplicación comprueba si WinGet puede actualizar yt-dlp. Si cambia la versión activa, reintenta la misma descarga una vez.
 
 Si cambia un sitio y las descargas empiezan a fallar, puedes actualizar yt-dlp con este comando cuando se haya instalado con WinGet.
 

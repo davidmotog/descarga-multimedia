@@ -73,7 +73,7 @@ $openFolderButton.Size = New-Object System.Drawing.Size(160, 35)
 $form.Controls.Add($openFolderButton)
 
 $installBox = New-Object System.Windows.Forms.CheckBox
-$installBox.Text = "Permitir que WinGet instale las herramientas que falten"
+$installBox.Text = "Permitir que WinGet instale herramientas y actualice yt-dlp si hay un error 403"
 $installBox.Location = New-Object System.Drawing.Point(20, 198)
 $installBox.AutoSize = $true
 $form.Controls.Add($installBox)
@@ -236,7 +236,34 @@ function Start-Download {
         }
 
         $ytArgs += @("--", $Url)
+        $version = & yt-dlp --version
+        Write-Log ("Versión de yt-dlp: " + $version)
         $exitCode = Invoke-LoggedProcess -FilePath "yt-dlp" -Arguments $ytArgs
+        if ($exitCode -ne 0 -and (Select-String -LiteralPath $LogFile -Pattern '^(ERROR|WARNING):.*\bHTTP Error 403\b' -Quiet)) {
+            Write-Log "El servidor ha rechazado la descarga (HTTP 403)."
+            if ($AllowInstall -and (Test-CommandExists "winget")) {
+                Write-Log "Buscando una actualización de yt-dlp con WinGet..."
+                $upgradeArgs = @("upgrade", "--id", "yt-dlp.yt-dlp", "--exact", "--source", "winget",
+                    "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity")
+                $upgradeCode = Invoke-LoggedProcess -FilePath "winget" -Arguments $upgradeArgs
+                Refresh-Path
+                if (Test-CommandExists "yt-dlp") {
+                    $currentVersion = & yt-dlp --version
+                    if ($LASTEXITCODE -eq 0 -and $currentVersion -and $currentVersion -ne $version) {
+                        Write-Log ("yt-dlp actualizado a {0}. Reintentando la descarga..." -f $currentVersion)
+                        $exitCode = Invoke-LoggedProcess -FilePath "yt-dlp" -Arguments $ytArgs
+                    } else {
+                        Write-Log ("Sigue activa la versión {0}. WinGet terminó con código {1}." -f $currentVersion, $upgradeCode)
+                    }
+                } else {
+                    Write-Log "Tras la actualización, Windows no encuentra yt-dlp. Vuelve a abrir el programa."
+                }
+            } elseif (-not $AllowInstall -and (Test-CommandExists "winget")) {
+                Write-Log "Marca la casilla de WinGet y vuelve a pulsar Descargar para permitir que se actualice yt-dlp si se repite el 403."
+            } else {
+                Write-Log "Actualiza yt-dlp con el mismo método que usaste para instalarlo y vuelve a intentar la descarga."
+            }
+        }
         Write-Log ""
 
         if ($exitCode -eq 0) {
