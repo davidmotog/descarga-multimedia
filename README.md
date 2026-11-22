@@ -60,3 +60,7 @@ Calcula el SHA-256 del ejecutable y compáralo con el valor de [SHA256SUMS.txt](
 ```powershell
 Get-FileHash .\DescargaMultimedia.exe -Algorithm SHA256
 ```
+
+## Licencia
+
+El código de este proyecto se distribuye con la [licencia MIT](LICENSE). Los componentes de terceros conservan sus respectivas licencias.
