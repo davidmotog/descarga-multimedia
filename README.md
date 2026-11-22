@@ -1,44 +1,51 @@
-﻿# Descarga Multimedia
+# Descarga Multimedia
 
-Aplicación para Windows en español que guarda audio en MP3 o vídeo en MP4 a partir de un enlace. Utiliza yt-dlp para obtener el contenido y FFmpeg para convertirlo. Admite YouTube y otros sitios compatibles con yt-dlp. La disponibilidad depende del sitio y del contenido.
+Descarga audio en **MP3** o vídeo en **MP4** desde YouTube y otros sitios compatibles con yt-dlp. La aplicación está en español y se abre en Windows con una interfaz HTML local basada en WebView2.
 
-## Descargar y usar
+**[Descargar DescargaMultimedia.exe](https://github.com/davidmotog/descarga-multimedia/releases/latest/download/DescargaMultimedia.exe)** · [Ver las notas de la última versión](https://github.com/davidmotog/descarga-multimedia/releases/latest)
 
-1. Descarga **DescargaMultimedia.exe** desde [la última versión](https://github.com/davidmotog/descarga-multimedia/releases/latest).
-2. Abre el programa, pega un enlace HTTP o HTTPS y elige **Audio · MP3** o **Vídeo · MP4**.
-3. Elige la carpeta y pulsa **Descargar**. La ventana muestra el progreso y permite abrir el archivo terminado. Despliega **Registro técnico** para ver los detalles.
+![Ventana de Descarga Multimedia con el campo de enlace, el selector MP3 o MP4 y el botón Descargar](docs/interfaz.png)
 
-El nombre del archivo incluye el título y el identificador del contenido. Utiliza la aplicación con material propio o que tengas permiso para descargar.
+## Requisitos
 
-La interfaz HTML se incluye en el ejecutable y se abre localmente con Microsoft Edge WebView2 Runtime. Si falta en tu equipo, puedes obtenerlo desde la [página de Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/). La esquina superior derecha muestra la versión con el formato **2.año.mes.día**. Pulsa **Buscar actualización** para consultar la última publicación de GitHub.
+- **Windows** con Microsoft Edge WebView2 Runtime. Si la ventana indica que falta, instala [WebView2 Runtime desde Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/).
+- **yt-dlp y FFmpeg** para la descarga y la conversión. Para los enlaces de YouTube, la aplicación también comprueba **Deno**.
+- **WinGet** si quieres que la aplicación instale las herramientas que falten. Activa la casilla correspondiente antes de descargar. Si la dejas desmarcada, el registro indica cómo instalar cada herramienta manualmente.
 
-## Herramientas de descarga
+## Cómo se usa
 
-El programa busca yt-dlp y FFmpeg en Windows. Para los enlaces de YouTube también comprueba Deno. Si falta una herramienta, la ventana indica el comando para instalarla. Puedes marcar **Permitir que WinGet instale herramientas y actualice yt-dlp si hay un error 403** antes de iniciar la descarga para que la aplicación ejecute esa instalación. La casilla está desactivada al abrir el programa. Si la activas y el servidor devuelve un error HTTP 403, la aplicación comprueba si WinGet puede actualizar yt-dlp. Si cambia la versión activa, reintenta la misma descarga una vez.
+1. Abre `DescargaMultimedia.exe` y pega el enlace HTTP o HTTPS del audio o vídeo.
+2. Selecciona **Audio** para guardar un MP3 o **Vídeo** para guardar un MP4.
+3. Revisa la ruta en **Guardar en**. Usa **Cambiar** para elegir otra carpeta.
+4. Pulsa **Descargar**. La ventana muestra el progreso y, al finalizar, ofrece **Abrir archivo**. También puedes usar **Abrir carpeta** para ver lo descargado.
 
-Si cambia un sitio y las descargas empiezan a fallar, puedes actualizar yt-dlp con este comando cuando se haya instalado con WinGet.
+El nombre del archivo incluye el título y el identificador del contenido. La disponibilidad depende del sitio y del enlace. Usa la aplicación con contenido propio o que tengas permiso para descargar. [Consultar los sitios compatibles con yt-dlp](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
+
+## Actualizaciones y errores de descarga
+
+- **Actualizar la aplicación.** La versión aparece arriba a la derecha con el formato `2.año.mes.día`. **Buscar actualización** consulta GitHub y ofrece un enlace si hay una versión posterior.
+- **Resolver un error HTTP 403.** Si activas la casilla de WinGet y se produce ese error, la aplicación busca una actualización de yt-dlp. Cuando detecta que ha cambiado la versión activa, reintenta la descarga una vez.
+- **Ver qué ha fallado.** Despliega **Registro técnico** y revisa el mensaje del sitio o de la herramienta. Para los problemas específicos de YouTube, consulta la [guía oficial de yt-dlp sobre Deno](https://github.com/yt-dlp/yt-dlp/wiki/EJS).
+
+Si instalaste yt-dlp con WinGet, puedes actualizarlo también desde PowerShell.
 
 ```powershell
 winget upgrade --id yt-dlp.yt-dlp --exact
 ```
 
-Consulta la [lista de sitios de yt-dlp](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) y la [guía de yt-dlp sobre Deno](https://github.com/yt-dlp/yt-dlp/wiki/EJS).
+## Compilar desde el código fuente
 
-## Ejecutar desde el código fuente
-
-Abre Windows PowerShell 5.1 en la carpeta del repositorio y ejecuta el script.
-
-```powershell
-.\DescargaMultimedia.ps1
-```
-
-El script compila el proyecto cuando hace falta. Para regenerar el ejecutable, usa Windows PowerShell 5.1 y .NET Framework 4.8. La compilación descarga el SDK WebView2 desde NuGet, comprueba su SHA-256 e incluye sus bibliotecas, la interfaz y el motor de descarga en el ejecutable.
+Abre Windows PowerShell 5.1 en la carpeta del repositorio, en un equipo con .NET Framework 4.8. Ejecuta el siguiente comando para generar `DescargaMultimedia.exe`.
 
 ```powershell
 .\Compilar.ps1
 ```
 
-Cada versión publicada incluye un archivo SHA256SUMS.txt. Puedes comparar su valor con el que devuelve este comando sobre tu copia del ejecutable.
+La compilación descarga el SDK de WebView2 desde NuGet, verifica su SHA-256 e incorpora al ejecutable las bibliotecas, la interfaz HTML y el motor de descarga. También puedes ejecutar `.\DescargaMultimedia.ps1` para abrir la aplicación y compilarla cuando haga falta.
+
+## Verificar la descarga
+
+Calcula el SHA-256 del ejecutable y compáralo con el valor de [SHA256SUMS.txt](https://github.com/davidmotog/descarga-multimedia/releases/latest/download/SHA256SUMS.txt) de la misma publicación.
 
 ```powershell
 Get-FileHash .\DescargaMultimedia.exe -Algorithm SHA256
