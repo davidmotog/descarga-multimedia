@@ -1,8 +1,12 @@
 ﻿Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName System.Net.Http
 
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
+$appVersion = [version]"1.2026.11.22"
+$releasesUrl = "https://github.com/davidmotog/descarga-multimedia/releases"
+$script:updateTask = $null
 $script:job = $null
 $script:logFile = $null
 $script:lastContent = ""
@@ -30,6 +34,14 @@ $urlLabel.Text = "Enlace del vídeo o audio:"
 $urlLabel.Location = New-Object System.Drawing.Point(20, 20)
 $urlLabel.Size = New-Object System.Drawing.Size(200, 25)
 $form.Controls.Add($urlLabel)
+
+$versionLabel = New-Object System.Windows.Forms.Label
+$versionLabel.Text = "Versión $appVersion"
+$versionLabel.TextAlign = [Drawing.ContentAlignment]::MiddleRight
+$versionLabel.Location = New-Object System.Drawing.Point(500, 15)
+$versionLabel.Size = New-Object System.Drawing.Size(220, 25)
+$versionLabel.Anchor = "Top, Right"
+$form.Controls.Add($versionLabel)
 
 $urlBox = New-Object System.Windows.Forms.TextBox
 $urlBox.Location = New-Object System.Drawing.Point(20, 45)
@@ -72,6 +84,12 @@ $openFolderButton.Location = New-Object System.Drawing.Point(380, 155)
 $openFolderButton.Size = New-Object System.Drawing.Size(160, 35)
 $form.Controls.Add($openFolderButton)
 
+$updateButton = New-Object System.Windows.Forms.Button
+$updateButton.Text = "Buscar actualización"
+$updateButton.Location = New-Object System.Drawing.Point(560, 155)
+$updateButton.Size = New-Object System.Drawing.Size(160, 35)
+$form.Controls.Add($updateButton)
+
 $installBox = New-Object System.Windows.Forms.CheckBox
 $installBox.Text = "Permitir que WinGet instale herramientas y actualice yt-dlp si hay un error 403"
 $installBox.Location = New-Object System.Drawing.Point(20, 198)
@@ -85,6 +103,88 @@ $logBox.Multiline = $true
 $logBox.ScrollBars = "Vertical"
 $logBox.ReadOnly = $true
 $form.Controls.Add($logBox)
+
+$updateStatus = New-Object System.Windows.Forms.LinkLabel
+$updateStatus.AutoSize = $true
+$updateStatus.Location = New-Object System.Drawing.Point(20, 457)
+$form.Controls.Add($updateStatus)
+
+# GitHub redirige releases/latest a la etiqueta de la última publicación estable.
+$httpHandler = New-Object System.Net.Http.HttpClientHandler
+$httpHandler.AllowAutoRedirect = $false
+$updateClient = New-Object System.Net.Http.HttpClient($httpHandler)
+$updateClient.Timeout = [TimeSpan]::FromSeconds(12)
+$updateClient.DefaultRequestHeaders.UserAgent.ParseAdd("DescargaMultimedia/$appVersion")
+$updateTimer = New-Object System.Windows.Forms.Timer
+$updateTimer.Interval = 150
+
+function Set-UpdateStatus {
+    param([string]$Text, [string]$ReleaseUrl)
+    $updateStatus.Text = $Text
+    $updateStatus.LinkArea = New-Object System.Windows.Forms.LinkArea(0, 0)
+    if ($ReleaseUrl) {
+        [void]$updateStatus.Links.Add(0, $Text.Length, $ReleaseUrl)
+    }
+}
+
+function Show-ReleaseStatus {
+    param([uri]$Location)
+    $prefix = "$releasesUrl/tag/"
+    if (-not $Location -or -not $Location.IsAbsoluteUri -or -not $Location.AbsoluteUri.StartsWith($prefix)) {
+        throw "GitHub no devolvió una página de versión reconocible."
+    }
+    $tag = $Location.AbsoluteUri.Substring($prefix.Length)
+    if ($tag -notmatch '^v?(\d+\.\d+\.\d+(?:\.\d+)?)$') {
+        throw "La versión publicada tiene un formato desconocido."
+    }
+    $latest = [version]$Matches[1]
+    if ($latest -gt $appVersion) {
+        Set-UpdateStatus "Versión $latest disponible. Abrir la descarga en GitHub." $Location.AbsoluteUri
+    } else {
+        Set-UpdateStatus "Estás al día. Tu versión es $appVersion."
+    }
+}
+
+$updateButton.Add_Click({
+    if ($script:updateTask) { return }
+    $updateButton.Enabled = $false
+    Set-UpdateStatus "Consultando la última versión en GitHub…"
+    try {
+        $script:updateTask = $updateClient.GetAsync("$releasesUrl/latest", [Net.Http.HttpCompletionOption]::ResponseHeadersRead)
+        $updateTimer.Start()
+    } catch {
+        $updateButton.Enabled = $true
+        Set-UpdateStatus "No se pudo consultar GitHub. Comprueba la conexión y vuelve a intentarlo."
+    }
+})
+
+$updateTimer.Add_Tick({
+    if (-not $script:updateTask.IsCompleted) { return }
+    $updateTimer.Stop()
+    $response = $null
+    try {
+        $response = $script:updateTask.GetAwaiter().GetResult()
+        if ([int]$response.StatusCode -notin @(301, 302, 303, 307, 308)) {
+            throw ("GitHub respondió con HTTP " + [int]$response.StatusCode)
+        }
+        Show-ReleaseStatus $response.Headers.Location
+    } catch {
+        Set-UpdateStatus "No se pudo comprobar la versión en GitHub. Vuelve a intentarlo."
+    } finally {
+        if ($response) { $response.Dispose() }
+        $script:updateTask = $null
+        $updateButton.Enabled = $true
+    }
+})
+
+$updateStatus.Add_LinkClicked({
+    param($sender, $eventArgs)
+    try {
+        Start-Process -FilePath ([string]$eventArgs.Link.LinkData) -ErrorAction Stop
+    } catch {
+        Show-Error "No se pudo abrir la página de la versión en el navegador."
+    }
+})
 
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 700
@@ -370,6 +470,8 @@ $form.Add_FormClosing({
 })
 
 $form.Add_FormClosed({
+    $updateTimer.Dispose()
+    $updateClient.Dispose()
     $timer.Dispose()
     if ($script:logFile) {
         Remove-Item -LiteralPath $script:logFile -Force -ErrorAction SilentlyContinue

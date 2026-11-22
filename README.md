@@ -10,6 +10,8 @@ Aplicación para Windows en español que guarda audio en MP3 o vídeo en MP4 a p
 
 El nombre del archivo incluye el título y el identificador del contenido. Utiliza la aplicación con material propio o que tengas permiso para descargar.
 
+La esquina superior derecha muestra la versión que estás ejecutando con el formato **1.año.mes.día**. Pulsa **Buscar actualización** para compararla con la última publicación de GitHub. Si hay una versión posterior, aparecerá un enlace para descargarla.
+
 ## Herramientas de descarga
 
 El programa busca yt-dlp y FFmpeg en Windows. Para los enlaces de YouTube también comprueba Deno. Si falta una herramienta, la ventana indica el comando para instalarla. Puedes marcar **Permitir que WinGet instale herramientas y actualice yt-dlp si hay un error 403** antes de iniciar la descarga para que la aplicación ejecute esa instalación. La casilla está desactivada al abrir el programa. Si la activas y el servidor devuelve un error HTTP 403, la aplicación comprueba si WinGet puede actualizar yt-dlp. Si cambia la versión activa, reintenta la misma descarga una vez.
