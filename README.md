@@ -61,6 +61,14 @@ Calcula el SHA-256 del ejecutable y compáralo con el valor de [SHA256SUMS.txt](
 Get-FileHash .\DescargaMultimedia.exe -Algorithm SHA256
 ```
 
+## Code signing policy
+
+El proyecto está preparado para solicitar la firma gratuita de [SignPath Foundation](https://signpath.org/). La aprobación del proyecto y la primera firma están pendientes. Las versiones actuales de GitHub se distribuyen sin firma.
+
+El mantenedor del código y responsable de revisar cambios y aprobar solicitudes de firma es [davidmotog](https://github.com/davidmotog). El [flujo de GitHub Actions](.github/workflows/firma.yml) compila desde el repositorio y comprueba la firma Authenticode, el sello de tiempo y el editor antes de generar el SHA-256 del ejecutable firmado.
+
+La aplicación carga la interfaz desde el propio ejecutable. Al pulsar **Descargar**, yt-dlp contacta con el sitio del enlace. **Buscar actualización** consulta GitHub y la casilla de WinGet permite a la herramienta usar el repositorio de WinGet para instalar o actualizar dependencias.
+
 ## Licencia
 
 El código de este proyecto se distribuye con la [licencia MIT](LICENSE). Los componentes de terceros conservan sus respectivas licencias.
